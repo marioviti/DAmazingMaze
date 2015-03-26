@@ -13,7 +13,7 @@ solve_task_A_star(go(Goal),Cost):-
 	map_distance(P,Goal,H),
 	Ginit is 0,
 	DpthInit is 0,
-	Finit is G+H,
+	Finit is H,
 	solve_task_A_star(go(Goal),c(Finit,Ginit,P,[]),[],DpthInit,Rpath,Cost,NewPos),
 	reverse(R,[_Init|Path]),
 	agent_do_moves(oscar,Path).
@@ -25,7 +25,6 @@ solve_task_A_star(go(p(Xgoal,Ygoal)),c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X
 solve_task_A_star(go(Goal),Current,Agenda,Dpth,RR,Cost,NewPos):-
 	Current=c(F0,G0,P0,Path_to_P0),
 	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
-	sort_Agenda(NewAgenda),
 	NewAgenda = [NewCurr|Rest],
 	Dpth1 is Dpth+1,
 	solve_task_A_star(go(Goal),NewCurr,Rest,Dpth,RR,Cost,NewPos).
