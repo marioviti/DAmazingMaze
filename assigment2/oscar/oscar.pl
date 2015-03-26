@@ -42,8 +42,11 @@ add_sorted_Agenda(Child,[Curr|Rest],[Child,Curr|Rest]):-
 	Child = c(Value1,_,_,_),
 	Curr = c(Value2,_,_,_),
 	Value1 =< Value2.
+<<<<<<< HEAD
+=======
 
 add_sorted_Agenda(Child,[],[Child]).
+>>>>>>> 4fa6b5646778ac0b450b2d4f7e820ede0320d2b5
 
 add_sorted_Agenda(Child,[Curr|Rest],[Curr|NewAgenda]):-
 	Child = c(Value1,_,_,_),
