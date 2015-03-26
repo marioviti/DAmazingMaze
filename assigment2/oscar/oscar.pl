@@ -33,9 +33,8 @@ solve_task_A_star(go(Goal),Current,Agenda,Dpth,RR,Cost,NewPos):-
 add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	map_adjacent(Curr,Adj1,empty),
 	map_distance(Adj1,Goal,D1), 					
-	Child is c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),
-	\+ memberchk(Child,Agenda),
-	add_sorted_Agenda(Child,Agenda,Add_one_Agenda),
+	\+ memberchk(c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),Agenda),
+	add_sorted_Agenda(c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),Agenda,Add_one_Agenda),
 	add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Add_one_Agenda,NewAgenda).
 
 add_to_Agenda(Goal,Curr,CurrG,Path_to_P,NewAgenda,NewAgenda).
