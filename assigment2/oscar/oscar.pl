@@ -42,7 +42,7 @@ add_to_Agenda(Goal,Curr,CurrG,Path_to_P,NewAgenda,NewAgenda).
 add_sorted_Agenda(Child,[Curr|Rest],[Curr,Child|Rest]):-
 	Child = c(Value1,_,_,_),
 	Curr = c(Value2,_,_,_),
-	Value1 <= Value2.
+	Value1 =< Value2.
 
 add_sorted_Agenda(Child,[Curr|Rest],[Curr|NewAgenda]):-
 	Child = c(Value1,_,_,_),
