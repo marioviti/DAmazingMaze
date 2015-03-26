@@ -33,15 +33,17 @@ add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	map_adjacent(Curr,Adj1,empty),
 	map_distance(Adj1,Goal,D1), 					
 	\+ memberchk(c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),Agenda),
-	add_sorted_Agenda(c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),Agenda,Add_one_Agenda),
+	add_sorted_Agenda(c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),Agenda,Add_one_Agenda),!,
 	add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Add_one_Agenda,NewAgenda).
 
 add_to_Agenda(Goal,Curr,CurrG,Path_to_P,NewAgenda,NewAgenda).
 
-add_sorted_Agenda(Child,[Curr|Rest],[Curr,Child|Rest]):-
+add_sorted_Agenda(Child,[Curr|Rest],[Child,Curr|Rest]):-
 	Child = c(Value1,_,_,_),
 	Curr = c(Value2,_,_,_),
 	Value1 =< Value2.
+
+add_sorted_Agenda(Child,[],[Child]).
 
 add_sorted_Agenda(Child,[Curr|Rest],[Curr|NewAgenda]):-
 	Child = c(Value1,_,_,_),
