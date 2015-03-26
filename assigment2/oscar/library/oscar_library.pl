@@ -52,7 +52,7 @@ map_distance(p(X,Y),p(X1,Y1), D) :-
 %%% agent predicates %%%
 
 % agent_do_move(+Agent, +To)
-% Has constraint that To is map_adjacent to Agent's current position
+% Has constraint that To is map_adjacent to Agents current position
 % Reduces energy by 1 if step is valid
 agent_do_move(Agent,To) :-
 	nonvar(Agent),
@@ -91,7 +91,7 @@ agent_current_position(Agent, Pos) :-
 	ailp_internal(agent_position(Agent,Pos)).
 
 % agent_topup_energy(+Agent, +OID)
-% Agent's position needs to be map_adjacent to charging station identified by OID
+% Agents position needs to be map_adjacent to charging station identified by OID
 agent_topup_energy(Agent, OID) :-
 	nonvar(Agent),
 	nonvar(OID),
@@ -103,7 +103,7 @@ agent_topup_energy(Agent, OID) :-
 	assert(ailp_internal(agent_energy(Agent,Emax))).
 
 % agent_ask_oracle(+Agent, +OID, +Question, -Answer)
-% Agent's position needs to be map_adjacent to oracle identified by OID
+% Agents position needs to be map_adjacent to oracle identified by OID
 agent_ask_oracle(Agent, OID, Question, Answer) :-
 	nonvar(Agent),
 	nonvar(OID),
