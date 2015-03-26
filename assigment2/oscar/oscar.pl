@@ -4,54 +4,9 @@
  *		Students edit this program to complete the assignment.
  */
 
+
 candidate_number(17655).
 
-%% A*
-
-solve_task_A_star(go(Goal),Cost):-
-	agent_current_position(oscar,P),
-	map_distance(P,Goal,H),
-	Ginit is 0,
-	DpthInit is 0,
-	Finit is H,
-	solve_task_A_star(go(Goal),c(Finit,Ginit,P,[]),[],DpthInit,Rpath,Cost,NewPos),
-	reverse(R,[_Init|Path]),
-	agent_do_moves(oscar,Path).
-
-solve_task_A_star(go(p(Xgoal,Ygoal)),c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],Cost,NewPos):-
-	Xgoal = X,
-	Ygoal = Y.
-
-solve_task_A_star(go(Goal),Current,Agenda,Dpth,RR,Cost,NewPos):-
-	Current=c(F0,G0,P0,Path_to_P0),
-	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
-	NewAgenda = [NewCurr|Rest],
-	Dpth1 is Dpth+1,
-	solve_task_A_star(go(Goal),NewCurr,Rest,Dpth,RR,Cost,NewPos).
-
-add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
-	map_adjacent(Curr,Adj1,empty),
-	map_distance(Adj1,Goal,D1), 					
-	\+ memberchk(c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),Agenda),
-	add_sorted_Agenda(c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),Agenda,Add_one_Agenda),!,
-	add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Add_one_Agenda,NewAgenda).
-
-add_to_Agenda(Goal,Curr,CurrG,Path_to_P,NewAgenda,NewAgenda).
-
-add_sorted_Agenda(Child,[Curr|Rest],[Child,Curr|Rest]):-
-	Child = c(Value1,_,_,_),
-	Curr = c(Value2,_,_,_),
-	Value1 =< Value2.
-
-add_sorted_Agenda(Child,[],[Child]).
-
-add_sorted_Agenda(Child,[Curr|Rest],[Curr|NewAgenda]):-
-	Child = c(Value1,_,_,_),
-	Curr = c(Value2,_,_,_),
-	Value1 > Value2,
-	add_sorted_Agenda(Child,Rest,NewAgenda).
-
-%%%%%%%%%%%%% end A*
 
 solve_task(Task,Cost):-
 	agent_current_position(oscar,P),
@@ -70,6 +25,7 @@ solve_task_bt(Task,Current,D,RR,Cost,NewPos) :-
 	F1 is F+C,
 	solve_task_bt(Task,[c(F1,P1),R|RPath],D1,RR,Cost,NewPos). % backtracking search
 
+
 achieved(go(Exit),Current,RPath,Cost,NewPos) :-
 	Current = [c(Cost,NewPos)|RPath],
 	( Exit=none -> true
@@ -84,6 +40,54 @@ achieved(find(O),Current,RPath,Cost,NewPos) :-
 
 search(F,N,N,1):-
 	map_adjacent(F,N,empty).
+
+
+%%% A* %%%
+
+solve_task_A_star(go(Goal),Cost):-
+	agent_current_position(oscar,P),
+	map_distance(P,Goal,H),
+	Ginit is 0,
+	DpthInit is 0,
+	Finit is H,
+	solve_task_A_star(go(Goal),c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos),!,
+	reverse(RR,[_Init|R]),
+	agent_do_moves(oscar,R).
+
+solve_task_A_star(go(p(Xgoal,Ygoal)),c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
+	Xgoal = X,
+	Ygoal = Y.
+
+solve_task_A_star(go(Goal),Current,Agenda,Dpth,RR,Cost,NewPos):-
+	Current=c(F0,G0,P0,Path_to_P0),
+	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
+	NewAgenda = [NewCurr|Rest],
+	Dpth1 is Dpth+1,
+	solve_task_A_star(go(Goal),NewCurr,Rest,Dpth,RR,Cost,NewPos).
+
+add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
+	map_adjacent(Curr,Adj1,empty),
+	map_distance(Adj1,Goal,H1), 
+	F1 is CurrG+H1+1,	
+	G1 is CurrG+1,
+	\+ memberchk(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda), %% will leave it for now then optimize in added
+	add_sorted_Agenda(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda,Add_one_Agenda),!,
+	add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Add_one_Agenda,NewAgenda).
+
+add_to_Agenda(Goal,Curr,CurrG,Path_to_P,NewAgenda,NewAgenda).
+
+add_sorted_Agenda(Child,[Curr|Rest],[Child,Curr|Rest]):-
+	Child = c(Value1,_,_,_),
+	Curr = c(Value2,_,_,_),
+	Value1 =< Value2.
+
+add_sorted_Agenda(Child,[],[Child]).
+
+add_sorted_Agenda(Child,[Curr|Rest],[Curr|NewAgenda]):-
+	Child = c(Value1,_,_,_),
+	Curr = c(Value2,_,_,_),
+	Value1 > Value2,
+	add_sorted_Agenda(Child,Rest,NewAgenda).
 
 
 %%% command shell %%%
@@ -129,8 +133,11 @@ callable(topup(S),agent_topup_energy(oscar,S),agent(topup)).
 callable(energy,agent_current_energy(oscar,E),both(current_energy(E))).
 callable(position,agent_current_position(oscar,P),both(current_position(P))).
 callable(ask(S,Q),agent_ask_oracle(oscar,S,Q,A),A).
+callable(Task,solve_task_A_star(Task,Cost),[console(Task),shell(term(Cost))]):-
+	go_task(Task).
 callable(Task,solve_task(Task,Cost),[console(Task),shell(term(Cost))]):-
-	task(Task).
+	find_task(Task).
 
-task(go(_Pos)).
-task(find(_O)).	% oracle o(N) or charging station c(N)
+
+go_task(go(_Pos)).
+find_task(find(_O)).	% oracle o(N) or charging station c(N)
