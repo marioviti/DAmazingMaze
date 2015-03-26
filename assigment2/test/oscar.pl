@@ -4,9 +4,7 @@
  *		Students edit this program to complete the assignment.
  */
 
-candidate_number(17655).
-
-%% A*
+%% solve_task_A_star(go(p(4,5)),Cost).
 
 solve_task_A_star(go(Goal),Cost):-
 	agent_current_position(oscar,P),
@@ -14,7 +12,7 @@ solve_task_A_star(go(Goal),Cost):-
 	Ginit is 0,
 	DpthInit is 0,
 	Finit is G+H,
-	solve_task_A_star(go(Goal),c(Finit,Ginit,P,[]),[],DpthInit,Rpath,Cost,NewPos),
+	solve_task_A_star(go(Goal),c(Finit,Ginit,P,[]),[],DpthInit,Rpath,Cost,NewPos),!,
 	reverse(R,[_Init|Path]),
 	agent_do_moves(oscar,Path).
 
@@ -33,8 +31,8 @@ solve_task_A_star(go(Goal),Current,Agenda,Dpth,RR,Cost,NewPos):-
 add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	map_adjacent(Curr,Adj1,empty),
 	map_distance(Adj1,Goal,D1), 					
-	Child is c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P]),
-	\+ memberchk(Child,Agenda),
+	Child is c(CurrG+D1+1,CurrG+1,Adj1,[Curr|Path_to_P0]),
+	Child \+ memberchk(Agenda),
 	add_sorted_Agenda(Child,Agenda,Add_one_Agenda),
 	add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Add_one_Agenda,NewAgenda).
 
@@ -43,48 +41,19 @@ add_to_Agenda(Goal,Curr,CurrG,Path_to_P,NewAgenda,NewAgenda).
 add_sorted_Agenda(Child,[Curr|Rest],[Curr,Child|Rest]):-
 	Child = c(Value1,_,_,_),
 	Curr = c(Value2,_,_,_),
-	Value1 <= Value2.
+	Value1<=Value2.
 
 add_sorted_Agenda(Child,[Curr|Rest],[Curr|NewAgenda]):-
 	Child = c(Value1,_,_,_),
 	Curr = c(Value2,_,_,_),
-	Value1 > Value2,
+	Value1>Value2,
 	add_sorted_Agenda(Child,Rest,NewAgenda).
-
-%%%%%%%%%%%%% end A*
 
 solve_task(Task,Cost):-
 	agent_current_position(oscar,P),
 	solve_task_bt(Task,[c(0,P),P],0,R,Cost,_NewPos),!,	% prune choice point for efficiency
 	reverse(R,[_Init|Path]),
 	agent_do_moves(oscar,Path).
-
-%% backtracking depth-first search, needs to be changed to agenda-based A*
-solve_task_bt(Task,Current,Depth,RPath,[cost(Cost),depth(Depth)],NewPos) :- 
-	achieved(Task,Current,RPath,Cost,NewPos).
-solve_task_bt(Task,Current,D,RR,Cost,NewPos) :-
-	Current = [c(F,P)|RPath],
-	search(P,P1,R,C),
-	\+ memberchk(R,RPath), % check we have not been here already
-	D1 is D+1,
-	F1 is F+C,
-	solve_task_bt(Task,[c(F1,P1),R|RPath],D1,RR,Cost,NewPos). % backtracking search
-
-achieved(go(Exit),Current,RPath,Cost,NewPos) :-
-	Current = [c(Cost,NewPos)|RPath],
-	( Exit=none -> true
-	; otherwise -> RPath = [Exit|_]
-	).
-achieved(find(O),Current,RPath,Cost,NewPos) :-
-	Current = [c(Cost,NewPos)|RPath],
-	( O=none    -> true
-	; otherwise -> RPath = [Last|_],map_adjacent(Last,_,O)
-	).
-
-
-search(F,N,N,1):-
-	map_adjacent(F,N,empty).
-
 
 %%% command shell %%%
 
