@@ -6,8 +6,6 @@ add(X,RR,[A,B|RR]):-
 	X=p(A,B).
 
 
-
-
 %%%this works!
 	
 add_sorted_Agenda(Child,[Curr|Rest],[Child,Curr|Rest]):-
