@@ -7,67 +7,41 @@
 
 candidate_number(17655).
 
-
-solve_task(Task,Cost):-
-	agent_current_position(oscar,P),
-	solve_task_bt(Task,[c(0,P),P],0,R,Cost,_NewPos),!,	% prune choice point for efficiency
-	reverse(R,[_Init|Path]),
-	agent_do_moves(oscar,Path).
-
-%% backtracking depth-first search, needs to be changed to agenda-based A*
-solve_task_bt(Task,Current,Depth,RPath,[cost(Cost),depth(Depth)],NewPos) :- 
-	achieved(Task,Current,RPath,Cost,NewPos).
-solve_task_bt(Task,Current,D,RR,Cost,NewPos) :-
-	Current = [c(F,P)|RPath],
-	search(P,P1,R,C),
-	\+ memberchk(R,RPath), % check we have not been here already
-	D1 is D+1,
-	F1 is F+C,
-	solve_task_bt(Task,[c(F1,P1),R|RPath],D1,RR,Cost,NewPos). % backtracking search
-
-
-achieved(go(Exit),Current,RPath,Cost,NewPos) :-
-	Current = [c(Cost,NewPos)|RPath],
-	( Exit=none -> true
-	; otherwise -> RPath = [Exit|_]
-	).
-achieved(find(O),Current,RPath,Cost,NewPos) :-
-	Current = [c(Cost,NewPos)|RPath],
-	( O=none    -> true
-	; otherwise -> RPath = [Last|_],map_adjacent(Last,_,O)
-	).
-
-
-search(F,N,N,1):-
-	map_adjacent(F,N,empty).
-
-
 %%% A* %%%
 
-solve_task_A_star(go(Goal),Cost):-
+solve_task_A_star(Goal,Cost):-
 	agent_current_position(oscar,P),
-	map_distance(P,Goal,H),
+	( 
+		Goal = go(Goal_pos) -> map_distance(P,Goal_pos,H);
+	 	Goal = find(Goal_pos) -> H is 0
+	),
 	Ginit is 0,
 	DpthInit is 0,
 	Finit is H,
-	solve_task_A_star(go(Goal),c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos),!,
+	solve_task_A_star(Goal,c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos),!,
 	reverse(RR,[_Init|R]),
 	agent_do_moves(oscar,R).
 
-solve_task_A_star(go(p(Xgoal,Ygoal)),c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
-	Xgoal = X,
-	Ygoal = Y.
+solve_task_A_star(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
+	( 
+		Goal = go(p(Xgoal,Ygoal)) -> Xgoal = X,Ygoal = Y;
+	 	Goal = find(Goal_pos) -> map_adjacent(p(X,Y),_,Goal_pos)
+	).
 
-solve_task_A_star(go(Goal),Current,Agenda,Dpth,RR,Cost,NewPos):-
+solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
 	Current=c(F0,G0,P0,Path_to_P0),
 	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
 	NewAgenda = [NewCurr|Rest],
 	Dpth1 is Dpth+1,
-	solve_task_A_star(go(Goal),NewCurr,Rest,Dpth,RR,Cost,NewPos).
+	solve_task_A_star(Goal,NewCurr,Rest,Dpth,RR,Cost,NewPos).
 
 add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	map_adjacent(Curr,Adj1,empty),
-	map_distance(Adj1,Goal,H1), 
+	( 
+		Goal = go(Goal_pos) -> map_distance(Adj1,Goal_pos,H1);
+	 	Goal = find(Goal_pos) -> H1 is 0
+	),
+	\+ memberchk(Adj1,Path_to_P),
 	F1 is CurrG+H1+1,	
 	G1 is CurrG+1,
 	\+ memberchk(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda), %% will leave it for now then optimize in added
@@ -134,10 +108,7 @@ callable(energy,agent_current_energy(oscar,E),both(current_energy(E))).
 callable(position,agent_current_position(oscar,P),both(current_position(P))).
 callable(ask(S,Q),agent_ask_oracle(oscar,S,Q,A),A).
 callable(Task,solve_task_A_star(Task,Cost),[console(Task),shell(term(Cost))]):-
-	go_task(Task).
-callable(Task,solve_task(Task,Cost),[console(Task),shell(term(Cost))]):-
-	find_task(Task).
+	task(Task).
 
-
-go_task(go(_Pos)).
-find_task(find(_O)).	% oracle o(N) or charging station c(N)
+task(go(_Pos)).
+task(find(_O)).	% oracle o(N) or charging station c(N)
