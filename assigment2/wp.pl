@@ -164,48 +164,67 @@ random_link(A,L):-
 
 %recusive loop through all the actors
 
-search_links(Link,[],Found).
-search_links(Link,L,Found):-
+search_links(Link,Found):-false.
+search_links(Link,Found):-
 	Found = 1.
 
-search_links(Link, [H|T], Found):-
-	(H is Link -> Found = 1;
-	 H \= Link -> Found = 0),
-	search_links(Link, H, Found).
+search_links(Link, Found):-
+	(wiki_link(Link) = true -> Found = 1;
+	 wiki_link(Link) = false -> Found = 0),
+	search_links(Link, Found).
 	
 search_links(Link, [H|T], Found):-
 	(T is Link -> Found = 1;
 	 T \= Link -> Found = 0),
 	search_links(Link, T, Found).
 
-actor_list(ActorList).
+%actor_list(ActorList).
 
-actor_list(ActorList):-
-	actor(X),
-	append([X], ActorList, T),
-	actor_list(T).
-		
-link_actor(Link, ActorList, UpdActorList).
+%actor_list(ActorList):-
+	%actor(X),
+	%\+ memberchk(X,ActorList),
+	%append([X], ActorList, T),	
+	%actor_list(T).
 
-link_actor(Link, [CurrActor|Rest], NewActorList):-
-	
-	wp(CurrActor,WT),wt_link(WT,L),writeln(L),fail,
-	search_links(Link, L, Found).
-	Found is 1 -> append([CurrActor], NewActorList, UpdActorList), link_actor(Link, Rest, UpdActorList);
-	Found is 0 -> link_actor(Link, Rest, NewActorList).
+%actor_list(A):-findall(X, actor(X), A).
 
+get_wiki(CurrActor, RandomLink, Found):-
+	wp(CurrActor,WT),wt_link(WT,Link),
+	(RandomLink = Link -> Found is 1;
+	RandomLink \= Link -> Found is 0),
+	%writeln(Link),
+	(Found = 0 -> fail; 
+	 Found = 1 -> true).
 
+get_wiki(CurrActor, RandomLink, Found):- true.
+
+link_actor(RandomLink, ActorList, UsePred, PredActors):-
+	(UsePred > 0 -> pred_actor(CurrActor);
+	 UsePred = 0 -> actor(CurrActor)),
+	\+ memberchk(CurrActor, ActorList),
+	append([CurrActor],ActorList,NewActorList),
+	get_wiki(CurrActor, RandomLink, Found),
+	%search_links(Link, Found),
+	(Found = 1 -> assert(pred_actor(CurrActor)), PredActors1 is PredActors+1, link_actor(RandomLink, NewActorList, UsePred, PredActors1);
+	 Found = 0 -> link_actor(RandomLink, NewActorList, UsePred, PredActors)).
+
+link_actor(RandomLink, ActorList, UsePred, PredActors):- true.
 
 % find_identity(-A) <- find hidden identity by repeatedly calling agent_ask_oracle(oscar,o(1),link,L)
-find_identity([Head]):-
-	writeln(Head).
+find_identity(A, UsePred, PredActors):-
+	UsePred > 1,
+	PredActors = 1.
 
-find_identity([Head|Tail]):-
-	UpdActorList = [NewCurr|Rest],
+find_identity(A, UsePred, PredActors):-
+	PredActors is 0,
 	agent_ask_oracle(oscar,o(1),link,RandomLink),	
-	(Head == 0 -> actor_list(Tail), link_actor(RandomLink, Tail, UpdActorList);
-	Head > 0 -> link_actor(RandomLink, Tail), UpdActorList),
-	find_identity(UpdActorList).
+	link_actor(RandomLink, [], UsePred, PredActors),
+	UsePred1 is UsePred+1,
+	(UsePred1 > 1 -> retractall(pred_actor(_)), find_identity(A, UsePred1, PredActors);
+	 UsePred1 =< 1-> find_identity(A, UsePred1, PredActors)).
+
+find_identity(A):- find_identity(A,0,0).
+	
 	
 
 %%% Testing
