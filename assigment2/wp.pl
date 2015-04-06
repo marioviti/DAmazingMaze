@@ -174,7 +174,7 @@ get_wiki(CurrActor, RandomLink):-
 	(RandomLink = Link -> assert(pred_actor(CurrActor));
 	 RandomLink \= Link -> fail).
 
-get_wiki(CurrActor, RandomLink):- true.
+get_wiki(CurrActor, RandomLink).
 
 link_actor(_,ActorList,_,ActorCount):-
 	length(ActorList, X),
@@ -186,25 +186,42 @@ link_actor(RandomLink, ActorList, UsePred, ActorCount):-
 	\+ memberchk(CurrActor, ActorList),
 	append([CurrActor],ActorList,NewActorList),
 	get_wiki(CurrActor,RandomLink),
-	%search_links(Link, Found),
 	link_actor(RandomLink, NewActorList, UsePred, ActorCount).
 
+check_link(RandomLinkList, UsePred, ActorCount, NewRandomLinkList):-
+	agent_ask_oracle(oscar,o(1),link,RandomLink),
+	(
+		memberchk(RandomLink, RandomLinkList) -> 
+			check_link(RandomLinkList, UsePred, ActorCount, NewRandomLinkList)
+		; otherwise -> 
+			ClearList = [],
+			append([RandomLink], ClearList, NewRandomLinkList),
+			link_actor(RandomLink, [], UsePred, ActorCount)
+	).
+
+check_link(RandomLinkList, UsePred, ActorCount, NewRandomLinkList).
+
 % find_identity(-A) <- find hidden identity by repeatedly calling agent_ask_oracle(oscar,o(1),link,L)
-find_identity(A, UsePred):-
+find_identity(A,UsePred,_):-
 	count_actors(UsePred, ActorCount),
 	ActorCount = 1,
 	pred_actor(A),
 	retractall(pred_actor(_)).
 
-find_identity(A, UsePred):-
-	agent_ask_oracle(oscar,o(1),link,RandomLink),	
+find_identity(A, UsePred, RandomLinkList):-
 	count_actors(UsePred, ActorCount),
-	link_actor(RandomLink, [], UsePred, ActorCount),
-	UsePred1 is UsePred+1,
-	find_identity(A, UsePred1).
+	(
+		ActorCount = 0 -> 
+			retractall(pred_actor(_)),
+			UsePred is 0,
+			find_identity(A, UsePred, [])
+		; otherwise -> 
+			check_link(RandomLinkList, UsePred, ActorCount, NewRandomLinkList),	
+			UsePred1 is UsePred+1,
+			find_identity(A, UsePred1, NewRandomLinkList) 
+	).
 
-find_identity(A):- find_identity(A,0).
-		
+find_identity(A):- find_identity(A,0,[]), !.	
 
 %%% Testing
 
