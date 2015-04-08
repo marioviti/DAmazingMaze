@@ -13,7 +13,8 @@ solve_task_A_star(Goal,Cost):-
 	agent_current_position(oscar,P),
 	( 
 		Goal = go(Goal_pos) -> map_distance(P,Goal_pos,H);
-	 	Goal = find(Goal_pos) -> H is 0
+	 	Goal = find(Goal_pos) -> H is 0;
+	 	Goal = random -> H is 0
 	),
 	Ginit is 0,
 	DpthInit is 0,
@@ -25,7 +26,17 @@ solve_task_A_star(Goal,Cost):-
 solve_task_A_star(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
 	( 
 		Goal = go(p(Xgoal,Ygoal)) -> Xgoal = X,Ygoal = Y;
-	 	Goal = find(Goal_pos) -> map_adjacent(p(X,Y),_,Goal_pos)
+	 	Goal = find(Goal_pos) -> map_adjacent(p(X,Y),_,Goal_pos);
+	 	Goal = random -> 
+	 		map_adjacent(p(X,Y),_,Goal_pos),
+	 		(Goal_pos=o(_);Goal_pos=c(_)),
+	 		(
+	 			current_predicate(found/1)->
+	 				\+found(Goal_pos),
+	 				assert(found(Goal_pos));
+	 			otherwise->
+	 				assert(found(Goal_pos))
+	 		) 				
 	).
 
 solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
@@ -39,7 +50,8 @@ add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	map_adjacent(Curr,Adj1,empty),
 	( 
 		Goal = go(Goal_pos) -> map_distance(Adj1,Goal_pos,H1);
-	 	Goal = find(Goal_pos) -> H1 is 0
+	 	Goal = find(Goal_pos) -> H1 is 0;
+	 	Goal = random -> H1 is 0 
 	),
 	\+ memberchk(Adj1,Path_to_P),
 	F1 is CurrG+H1+1,	
