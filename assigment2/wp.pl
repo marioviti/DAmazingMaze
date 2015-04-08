@@ -119,12 +119,12 @@ atomic_list_concatN(N, L, S, A):-
 
 %%% Actors and links
 
-actor('Billy Bob Thornton').
+%actor('Billy Bob Thornton').
 actor('Frances McDormand').
 actor('Gabriel Byrne').
 actor('George Clooney').
 actor('Holly Hunter').
-actor('Jeff Bridges').
+%actor('Jeff Bridges').
 actor('John Goodman').
 actor('John Turturro').
 actor('Julianne Moore').
@@ -139,15 +139,15 @@ link('Coen brothers').
 link('Golden Globe Award for Best Supporting Actor – Motion Picture').
 link('Hollywood Walk of Fame').
 link('Inside the Actors Studio').
-%link('Manhattan').
+link('Manhattan').
 link('Miller\'s Crossing').
-%link('New York City').
+link('New York City').
 link('O Brother, Where Art Thou?').
-%link('Rotten Tomatoes').
+link('Rotten Tomatoes').
 link('Saturday Night Live').
 link('Screen Actors Guild Award').
 link('The Big Lebowski').
-%link('The New York Times').
+link('The New York Times').
 link('Tony Award').
 
 random_actor(A):-
@@ -188,40 +188,21 @@ link_actor(RandomLink, ActorList, UsePred, ActorCount):-
 	get_wiki(CurrActor,RandomLink),
 	link_actor(RandomLink, NewActorList, UsePred, ActorCount).
 
-check_link(RandomLinkList, UsePred, ActorCount, NewRandomLinkList):-
-	agent_ask_oracle(oscar,o(1),link,RandomLink),
-	(
-		memberchk(RandomLink, RandomLinkList) -> 
-			check_link(RandomLinkList, UsePred, ActorCount, NewRandomLinkList)
-		; otherwise -> 
-			ClearList = [],
-			append([RandomLink], ClearList, NewRandomLinkList),
-			link_actor(RandomLink, [], UsePred, ActorCount)
-	).
-
-check_link(RandomLinkList, UsePred, ActorCount, NewRandomLinkList).
-
 % find_identity(-A) <- find hidden identity by repeatedly calling agent_ask_oracle(oscar,o(1),link,L)
-find_identity(A,UsePred,_):-
+find_identity(A,UsePred):-
 	count_actors(UsePred, ActorCount),
 	ActorCount = 1,
 	pred_actor(A),
 	retractall(pred_actor(_)).
 
-find_identity(A, UsePred, RandomLinkList):-
+find_identity(A, UsePred):-
+	agent_ask_oracle(oscar,o(1),link,RandomLink),
 	count_actors(UsePred, ActorCount),
-	(
-		ActorCount = 0 -> 
-			retractall(pred_actor(_)),
-			UsePred is 0,
-			find_identity(A, UsePred, [])
-		; otherwise -> 
-			check_link(RandomLinkList, UsePred, ActorCount, NewRandomLinkList),	
-			UsePred1 is UsePred+1,
-			find_identity(A, UsePred1, NewRandomLinkList) 
-	).
+	link_actor(RandomLink, [], UsePred, ActorCount),
+	UsePred1 is UsePred+1,
+	find_identity(A, UsePred1).
 
-find_identity(A):- find_identity(A,0,[]), !.	
+find_identity(A):- find_identity(A,0), !.	
 
 %%% Testing
 
