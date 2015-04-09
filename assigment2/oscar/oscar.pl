@@ -124,3 +124,4 @@ callable(Task,solve_task_A_star(Task,Cost),[console(Task),shell(term(Cost))]):-
 
 task(go(_Pos)).
 task(find(_O)).	% oracle o(N) or charging station c(N)
+task(random).
