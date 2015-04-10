@@ -7,7 +7,45 @@
 
 candidate_number(17655).
 
-%%% A* %%%
+%% shared strategies module %%
+
+%% strategy may change by adapting the bound to particular situation
+init_state:-
+	(current_predicate(curr_state/2)-> retractall(status(_)),retractall(bound(_)),retractall(curr_state(_,_))
+	),
+	assert(status(normal)), assert(bound(20)), assert(curr_state([],[])). 
+
+updatepos(Pos,Type):-
+	curr_state(OracleList,ChargingList),(	
+		Type = o(_)-> assert(curr_state([Pos|OracleList],ChargingList));
+		Type = c(_)-> assert(curr_state(OracleList,[Pos|ChargingList]))
+	),
+	retract(curr_state(OracleList,ChargingList)).
+
+%% just a test method
+find_soultion:- 
+	writeln('into find'),fail.
+
+check_energy_switch:-
+	agent_current_energy(oscar,E),status(S),bound(B),(	
+		E<B ->(	
+			S = normal-> assert(status(critical)), retract(status(normal));
+			otherwise->find_soultion 
+		);
+		otherwise ->(	
+			S = normal->find_soultion;
+			otherwise-> assert(status(normal)), retract(status(critical))
+		)
+	).
+
+%% debug utilities %%
+
+print_state:-
+	status(S), curr_state(OracleList,ChargingList), agent_current_energy(oscar,E),
+	writeln('staus': S), writeln('current energy': E),
+	writeln('OracleList': OracleList), writeln('ChargingList': ChargingList).
+
+%% A* %%
 
 solve_task_A_star(Goal,Cost):-
 	agent_current_position(oscar,P),
