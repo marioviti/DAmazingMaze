@@ -94,6 +94,7 @@ add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	\+ memberchk(Adj1,Path_to_P),
 	F1 is CurrG+H1+1,	
 	G1 is CurrG+1,
+	/*
 	(
 		Goal = random -> 
 			\+ memberchk(c(_,_,Adj1,_),Agenda)
@@ -101,6 +102,8 @@ add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 		otherwise -> 
 			\+ memberchk(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda)
 	),
+	*/
+	\+ memberchk(c(_,_,Adj1,_),Agenda),
 	add_sorted_Agenda(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda,Add_one_Agenda),!,
 	add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Add_one_Agenda,NewAgenda).
 
