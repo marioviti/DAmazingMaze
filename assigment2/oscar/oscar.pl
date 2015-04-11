@@ -38,12 +38,69 @@ check_energy_switch:-
 		)
 	).
 
+%% Use getNearest/2 gets the nearest Pos from a List of Pos
+
+updateHeuristic(CurrP,[],[]).
+
+updateHeuristic(CurrP,[First|Rest],[couple(First,D)|List]):-
+	map_distance(CurrP,First,D),
+	updateHeuristic(CurrP,Rest,List).
+
+add_sorted(Child,[Curr|Rest],[Child,Curr|Rest]):-
+	Child = couple(_,Value1),
+	Curr = couple(_,Value2),
+	Value1 =< Value2.
+
+add_sorted(Child,[],[Child]).
+
+add_sorted(Child,[Curr|Rest],[Curr|NewAgenda]):-
+	Child = couple(_,Value1),
+	Curr = couple(_,Value2),
+	Value1 > Value2,
+	add_sorted(Child,Rest,NewAgenda).
+
+sort([],NewSortedPosList,NewSortedPosList).
+
+sort([First|Rest],TemplList,SortedPosList):-
+	add_sorted(First,TemplList,NewSortedPosList),
+	sort(Rest,NewSortedPosList,SortedPosList).
+
+getNearest(PosList,Target):-
+	agent_current_position(oscar,CurrP),
+	updateHeuristic(CurrP,PosList,WeightedPosList),
+	sort(WeightedPosList,[],SortedPosList),
+	SortedPosList=[couple(Target,_)|Rest].
+
 %% debug utilities %%
 
 print_state:-
 	status(S), curr_state(OracleList,ChargingList), agent_current_energy(oscar,E),
 	writeln('staus': S), writeln('current energy': E),
 	writeln('OracleList': OracleList), writeln('ChargingList': ChargingList).
+
+%% main strategy stub
+
+start_solving:-
+	init_state,find_soultion.
+
+find_soultion:-
+	status(S),(	
+		S=normal->normal_strategy;
+		S=critical->critical_strategy
+	).
+
+%% critical status strategy
+
+critical_strategy:-
+	agent_current_position(oscar,CurrP),
+	map_adjacent(CurrP,AdjPos,Type),(
+		Type=c(_)->agent_topup_energy(oscar, Type);
+		Type=o(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
+		otherwise->curr_state(_,ChargingList),(
+			\+ChargingList=[]->getNearest(ChargingList,Targer),solve_task_A_star(go(Target,_));
+			otherwise->solve_task_A_star(random,_)
+			)
+	),check_energy_switch.
 
 %% A* %%
 
@@ -94,16 +151,14 @@ add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	\+ memberchk(Adj1,Path_to_P),
 	F1 is CurrG+H1+1,	
 	G1 is CurrG+1,
-	/*
 	(
+		%% use simple bfs
 		Goal = random -> 
 			\+ memberchk(c(_,_,Adj1,_),Agenda)
 		;
 		otherwise -> 
-			\+ memberchk(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda)
+			\+ memberchk(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda) 
 	),
-	*/
-	\+ memberchk(c(_,_,Adj1,_),Agenda),
 	add_sorted_Agenda(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda,Add_one_Agenda),!,
 	add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Add_one_Agenda,NewAgenda).
 
