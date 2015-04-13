@@ -8,7 +8,7 @@
 
 %%% Wikipedia stuff
 
-:- dynamic wp_cache/2.	% used to cache all Wikipedia pages fetched during one Prolog session
+:- dynamic wp_cache/2, pred_actor/1.
 
 % wp(Q,WT) <- issue query Q to Wikipedia and return the page in wikitext format
 wp(Q,WT):-
@@ -165,9 +165,9 @@ random_link(A,L):-
 
 %recusive loop through all the actors
 
-count_actors(UsePred, X) :-
-    (UsePred > 0 -> findall(N, pred_actor(N), Ns);
-     UsePred == 0 -> findall(N, actor(N), Ns)),
+count_actors(PredCount, X) :-
+    (PredCount > 0 -> findall(N, pred_actor(N), Ns);
+     otherwise -> findall(N, actor(N), Ns)),
     length(Ns, X).
 
 get_wiki(CurrActor, RandomLink):-
@@ -181,30 +181,24 @@ link_actor(_,ActorList,_,ActorCount):-
 	length(ActorList, X),
 	X = ActorCount.
 
-link_actor(RandomLink, ActorList, UsePred, ActorCount):-
-	(UsePred > 0 -> pred_actor(CurrActor), retract(pred_actor(CurrActor));
-	 UsePred = 0 -> actor(CurrActor)),
+link_actor(RandomLink, ActorList, PredCount, ActorCount):-
+	(PredCount = 0 -> actor(CurrActor);
+	 otherwise -> pred_actor(CurrActor), retract(pred_actor(CurrActor))),
 	\+ memberchk(CurrActor, ActorList),
 	append([CurrActor],ActorList,NewActorList),
 	get_wiki(CurrActor,RandomLink),
-	link_actor(RandomLink, NewActorList, UsePred, ActorCount).
+	link_actor(RandomLink, NewActorList, PredCount, ActorCount).
 
 % find_identity(-A) <- find hidden identity by repeatedly calling agent_ask_oracle(oscar,o(1),link,L)
-find_identity(Type,UsePred):-
-	%count_actors(UsePred, ActorCount),
-	%ActorCount = 1,
-	%pred_actor(A),
-	%retractall(pred_actor(_)).
-	UsePred = 1.
-
-find_identity(Type,UsePred):-
+find_identity(Type):-
 	agent_ask_oracle(oscar,Type,link,RandomLink),
-	count_actors(UsePred, ActorCount),
-	link_actor(RandomLink, [], UsePred, ActorCount),
-	UsePred1 is UsePred+1,
-	find_identity(UsePred1).
+	findall(N, pred_actor(N), PredActors),
+	length(PredActors,PredCount),
+	(PredCount > 0 -> ActorCount is PredCount;
+	otherwise -> count_actors(PredCount, ActorCount)),
+	link_actor(RandomLink, [], PredCount, ActorCount).
 
-find_identity(Type):- find_identity(Type,0), !.	
+find_identity(Type).
 
 %%% Testing
 

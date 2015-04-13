@@ -4,37 +4,48 @@
  *		Students edit this program to complete the assignment.
  */
 
-
+:-consult('wp.pl').
 candidate_number(17655).
 
 %% shared strategies module %%
 
 %% strategy may change by adapting the bound to particular situation
+
+:- dynamic
+	 found_internal_objects/1.
+
+
 init_state:-
-	(current_predicate(curr_state/2)-> retractall(status(_)),retractall(bound(_)),retractall(curr_state(_,_))
-	),
-	assert(status(normal)), assert(bound(20)), assert(curr_state([],[])). 
+	(
+		current_predicate(curr_state/2)-> retractall(status(_)),retractall(bound(_)),retractall(curr_state(_,_)),assert(status(normal)), assert(bound(25)), assert(curr_state([],[]));
+		otherwise->assert(status(normal)), assert(bound(25)), assert(curr_state([],[]))
+	).
 
 updatepos(Pos,Type):-
-	curr_state(OracleList,ChargingList),(	
+	curr_state(OracleList,ChargingList),
+	(	
 		Type = o(_)-> assert(curr_state([Pos|OracleList],ChargingList));
 		Type = c(_)-> assert(curr_state(OracleList,[Pos|ChargingList]))
 	),
 	retract(curr_state(OracleList,ChargingList)).
 
-%% just a test method
-find_soultion:- 
-	writeln('into find'),fail.
+deletepos(Pos,Type):-
+	curr_state(OracleList,ChargingList),
+	(	
+		Type = o(_)-> subtract(OracleList, [Pos], NewOracleList), assert(curr_state(NewOracleList,ChargingList));
+		Type = c(_)-> subtract(ChargingList, [Pos], NewChargingList), assert(curr_state(OracleList,NewChargingList))
+	),
+	retract(curr_state(OracleList,ChargingList)).
 
 check_energy_switch:-
 	agent_current_energy(oscar,E),status(S),bound(B),(	
 		E<B ->(	
-			S = normal-> assert(status(critical)), retract(status(normal));
-			otherwise->find_soultion 
+			S = normal-> assert(status(critical)), retract(status(normal)),find_solution;
+			otherwise->find_solution 
 		);
 		otherwise ->(	
-			S = normal->find_soultion;
-			otherwise-> assert(status(normal)), retract(status(critical))
+			S = normal->find_solution;
+			otherwise-> assert(status(normal)), retract(status(critical)),find_solution 
 		)
 	).
 
@@ -65,42 +76,78 @@ sort([First|Rest],TemplList,SortedPosList):-
 	add_sorted(First,TemplList,NewSortedPosList),
 	sort(Rest,NewSortedPosList,SortedPosList).
 
-getNearest(PosList,Target):-
+getNearest(PosList,Target,Type):-
 	agent_current_position(oscar,CurrP),
 	updateHeuristic(CurrP,PosList,WeightedPosList),
 	sort(WeightedPosList,[],SortedPosList),
-	SortedPosList=[couple(Target,_)|Rest].
+	SortedPosList=[couple(Target,_)|Rest],
+	deletepos(Target,Type).
 
 %% debug utilities %%
 
 print_state:-
 	status(S), curr_state(OracleList,ChargingList), agent_current_energy(oscar,E),
-	writeln('staus': S), writeln('current energy': E),
+	writeln('status': S), writeln('current energy': E),
 	writeln('OracleList': OracleList), writeln('ChargingList': ChargingList).
 
 %% main strategy stub
 
-start_solving:-
-	init_state,find_soultion.
+start_solving(A):-
+	init_state,find_solution,complete(A),!.
 
-find_soultion:-
-	status(S),(	
+find_solution:-
+	count_actors(1, ActorCount),
+	status(S),
+	(
+		ActorCount=1->true;	
 		S=normal->normal_strategy;
 		S=critical->critical_strategy
 	).
 
+complete(Actor):-
+	pred_actor(Actor),
+	retractall(pred_actor(_)),
+	retractall(found(_)),		
+	retractall(found_internal_objects(_)).
+
 %% critical status strategy
+
+my_map_adjacent(CurrP,AdjPos,RetType):-
+	map_adjacent(CurrP,AdjPos,RetType),\+found_internal_objects(RetType),(RetType=o(_);RetType=c(_)).
+
+my_map_adjacent(CurrP,AdjPos,empty).
 
 critical_strategy:-
 	agent_current_position(oscar,CurrP),
-	map_adjacent(CurrP,AdjPos,Type),(
-		Type=c(_)->agent_topup_energy(oscar, Type);
-		Type=o(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
-		otherwise->curr_state(_,ChargingList),(
-			\+ChargingList=[]->getNearest(ChargingList,Targer),solve_task_A_star(go(Target,_));
+	my_map_adjacent(CurrP,AdjPos,Type),!,
+	curr_state(_,ChargingList),
+	(
+		\+ChargingList=[]->getNearest(ChargingList,Target,c(_)),solve_task_A_star(go(Target),_);
+		otherwise->
+		(
+			Type=c(_)->agent_topup_energy(oscar, Type),assert(found_internal_objects(Type));
+			Type=o(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
 			otherwise->solve_task_A_star(random,_)
-			)
-	),check_energy_switch.
+		)
+	),
+	check_energy_switch.
+
+
+%% normal status strategy 
+normal_strategy:-
+	agent_current_position(oscar,CurrP),
+	my_map_adjacent(CurrP,AdjPos,Type),!,
+	(
+		Type=o(_)->find_identity(Type),assert(found_internal_objects(Type));
+		Type=c(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
+		otherwise->curr_state(OracleList,_),
+		(
+			\+OracleList=[]->getNearest(OracleList,Target,o(_)),solve_task_A_star(go(Target),_);
+			otherwise->solve_task_A_star(random,_)
+		)
+	),
+	check_energy_switch.
+
 
 %% A* %%
 
@@ -119,7 +166,7 @@ solve_task_A_star(Goal,Cost):-
 	agent_do_moves(oscar,R).
 
 solve_task_A_star(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
-	( 
+	( 	
 		Goal = go(p(Xgoal,Ygoal)) -> Xgoal = X,Ygoal = Y;
 	 	Goal = find(Goal_pos) -> map_adjacent(p(X,Y),_,Goal_pos);
 	 	Goal = random -> 
