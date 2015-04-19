@@ -14,7 +14,6 @@ candidate_number(17655).
 :- dynamic
 	 found_internal_objects/1.
 
-
 init_state:-
 	(
 		current_predicate(curr_state/2)-> retractall(status(_)),retractall(bound(_)),retractall(curr_state(_,_)),assert(status(normal)), assert(bound(25)), assert(curr_state([],[]));
@@ -93,7 +92,7 @@ print_state:-
 %% main strategy stub
 
 start_solving(A):-
-	init_state,find_solution,complete(A),!.
+	init_state,find_solution,!,pred_actor(A),do_command([oscar,say,A]),complete.
 
 find_solution:-
 	count_actors(1, ActorCount),
@@ -104,8 +103,7 @@ find_solution:-
 		S=critical->critical_strategy
 	).
 
-complete(Actor):-
-	pred_actor(Actor),
+complete:-
 	retractall(pred_actor(_)),
 	retractall(found(_)),		
 	retractall(found_internal_objects(_)).
@@ -122,13 +120,10 @@ critical_strategy:-
 	my_map_adjacent(CurrP,AdjPos,Type),!,
 	curr_state(_,ChargingList),
 	(
+		Type=c(_)->agent_topup_energy(oscar, Type),assert(found_internal_objects(Type));
 		\+ChargingList=[]->getNearest(ChargingList,Target,c(_)),solve_task_A_star(go(Target),_);
-		otherwise->
-		(
-			Type=c(_)->agent_topup_energy(oscar, Type),assert(found_internal_objects(Type));
-			Type=o(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
-			otherwise->solve_task_A_star(random,_)
-		)
+		Type=o(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
+		otherwise->solve_task_A_star(random,_)
 	),
 	check_energy_switch.
 

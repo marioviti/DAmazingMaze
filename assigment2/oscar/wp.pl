@@ -200,8 +200,6 @@ find_identity(Type):-
 
 find_identity(Type).
 
-%%% Testing
-
 :- dynamic ailp_identity/1.
 
 % asserts a random actor identity
@@ -232,9 +230,11 @@ test.
 % agent_ask_oracle(+Agent, +OID, +Question, -Answer)
 % Agent's position needs to be map_adjacent to oracle identified by OID
 %% Test query to be used: :-agent_ask_oracle(oscar,o(1),link,L). %%
+/*
 agent_ask_oracle(Agent, OID, Question, Answer) :-
 	nonvar(Agent),
 	nonvar(OID),
+	writeln(OID),
 	nonvar(Question),
 	var(Answer),
 	%agent_current_position(Agent,Pos),	% ignore agent position for testing
@@ -243,6 +243,7 @@ agent_ask_oracle(Agent, OID, Question, Answer) :-
 	internal_object(OID, _AdjPos, Options),
 	member(question(Q)/answer(A),Options),
 	( Question=Q -> Answer=A ; Answer='I do not know' ).
+*/
 
 internal_object(o(1),p(5,3),[question(link)/answer(Link)]):-
 	ailp_identity(A),

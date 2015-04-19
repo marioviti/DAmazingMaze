@@ -5,7 +5,6 @@
  *		Loads and runs specified assignmentN.pro file from folder assignmentN.
  */
  
-
 :- dynamic
      user:prolog_file_type/2,
      user:file_search_path/2.
@@ -13,7 +12,6 @@
 :- multifile
      user:prolog_file_type/2,
      user:file_search_path/2.
-
 
 :-  % parse command line arguments
     current_prolog_flag(argv, _),
