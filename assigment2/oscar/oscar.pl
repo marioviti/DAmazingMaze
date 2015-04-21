@@ -135,11 +135,17 @@ critical_strategy:-
 normal_strategy:-
 	agent_current_position(oscar,CurrP),
 	my_map_adjacent(CurrP,AdjPos,Type),!,
-	curr_state(OracleList,_),
-	(
-		Type=o(_)->find_identity(Type),assert(found_internal_objects(Type)),writeln('see me for loops');
+	curr_state(OracleList,_),(
+		Type=o(_)->
+			writeln('loop strategy'),
+			bound(B),
+			agent_current_energy(oscar,E),
+			Ask_oracle_cost is B + 10,(
+				E<Ask_oracle_cost->retractall(bound(_)),assert(bound(Ask_oracle_cost)),updatepos(CurrP,Type),writeln('changed bound');
+				otherwise->find_identity(Type),assert(found_internal_objects(Type))
+			);
 		Type=c(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
-		\+OracleList=[]->getNearest(OracleList,Target,o(_)),solve_task_A_star(go(Target),_);
+		\+OracleList=[]->getNearest(OracleList,Target,o(_)),solve_task_A_star(go(Target),_),writeln('loop strategy');
 		otherwise->solve_task_A_star(random,_)
 	),
 	check_energy_switch.
@@ -158,20 +164,18 @@ solve_task_A_star(Goal,Cost):-
 	Finit is H,
 	solve_task_A_star(Goal,c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos),!,
 	reverse(RR,[_Init|R]),
-	(
-		\+Goal=random->agent_do_moves(oscar,R);
-		otherwise->true
-	).
+	agent_do_moves(oscar,R).
 
 solve_task_A_star(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
 	( 	
 		Goal = go(p(Xgoal,Ygoal)) -> Xgoal = X,Ygoal = Y;
 	 	Goal = find(Goal_pos) -> map_adjacent(p(X,Y),_,Goal_pos);
-	 	Goal = random -> 
+	 	Goal = random , map_adjacent(p(X,Y),_,Goal_pos),(Goal_pos=o(_);Goal_pos=c(_)),\+found(Goal_pos)-> 
 	 		map_adjacent(p(X,Y),_,Goal_pos),
+	 		writeln('loop A*':Goal_pos),
 	 		(Goal_pos=o(_);Goal_pos=c(_)),
 	 		\+found(Goal_pos),
-	 		(\+found(Goal_pos)->assert(found(Goal_pos)),updatepos(p(X,Y),Goal_pos))			
+	 		(\+found(Goal_pos)->assert(found(Goal_pos)))			
 	).
 
 solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
