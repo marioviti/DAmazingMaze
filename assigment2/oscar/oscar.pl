@@ -12,7 +12,7 @@ candidate_number(17655).
 %% strategy may change by adapting the bound to particular situation
 
 :- dynamic
-	 found_internal_objects/1.
+	found_internal_objects/1,found/1.
 
 init_state:-
 	(
@@ -35,18 +35,6 @@ deletepos(Pos,Type):-
 		Type = c(_)-> subtract(ChargingList, [Pos], NewChargingList), assert(curr_state(OracleList,NewChargingList))
 	),
 	retract(curr_state(OracleList,ChargingList)).
-
-check_energy_switch:-
-	agent_current_energy(oscar,E),status(S),bound(B),(	
-		E<B ->(	
-			S = normal-> assert(status(critical)), retract(status(normal)),find_solution;
-			otherwise->find_solution 
-		);
-		otherwise ->(	
-			S = normal->find_solution;
-			otherwise-> assert(status(normal)), retract(status(critical)),find_solution 
-		)
-	).
 
 %% Use getNearest/2 gets the nearest Pos from a List of Pos
 
@@ -95,6 +83,7 @@ start_solving(A):-
 	init_state,find_solution,!,pred_actor(A),do_command([oscar,say,A]),complete.
 
 find_solution:-
+	\+agent_current_energy(oscar,0),
 	count_actors(1, ActorCount),
 	status(S),
 	(
@@ -110,8 +99,22 @@ complete:-
 
 %% critical status strategy
 
+check_energy_switch:-
+	agent_current_energy(oscar,E),status(S),bound(B),(	
+		E<B ->(	
+			S = normal-> assert(status(critical)), retract(status(normal)),find_solution;
+			otherwise->find_solution 
+		);
+		otherwise ->(	
+			S = normal->find_solution;
+			otherwise-> assert(status(normal)), retract(status(critical)),find_solution 
+		)
+	).
+
 my_map_adjacent(CurrP,AdjPos,RetType):-
-	map_adjacent(CurrP,AdjPos,RetType),\+found_internal_objects(RetType),(RetType=o(_);RetType=c(_)).
+	map_adjacent(CurrP,AdjPos,RetType),
+	\+found_internal_objects(RetType),
+	(RetType=o(_);RetType=c(_)).
 
 my_map_adjacent(CurrP,AdjPos,empty).
 
@@ -132,17 +135,14 @@ critical_strategy:-
 normal_strategy:-
 	agent_current_position(oscar,CurrP),
 	my_map_adjacent(CurrP,AdjPos,Type),!,
+	curr_state(OracleList,_),
 	(
-		Type=o(_)->find_identity(Type),assert(found_internal_objects(Type));
+		Type=o(_)->find_identity(Type),assert(found_internal_objects(Type)),writeln('see me for loops');
 		Type=c(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
-		otherwise->curr_state(OracleList,_),
-		(
-			\+OracleList=[]->getNearest(OracleList,Target,o(_)),solve_task_A_star(go(Target),_);
-			otherwise->solve_task_A_star(random,_)
-		)
+		\+OracleList=[]->getNearest(OracleList,Target,o(_)),solve_task_A_star(go(Target),_);
+		otherwise->solve_task_A_star(random,_)
 	),
 	check_energy_switch.
-
 
 %% A* %%
 
@@ -158,7 +158,10 @@ solve_task_A_star(Goal,Cost):-
 	Finit is H,
 	solve_task_A_star(Goal,c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos),!,
 	reverse(RR,[_Init|R]),
-	agent_do_moves(oscar,R).
+	(
+		\+Goal=random->agent_do_moves(oscar,R);
+		otherwise->true
+	).
 
 solve_task_A_star(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
 	( 	
@@ -167,13 +170,8 @@ solve_task_A_star(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_go
 	 	Goal = random -> 
 	 		map_adjacent(p(X,Y),_,Goal_pos),
 	 		(Goal_pos=o(_);Goal_pos=c(_)),
-	 		(
-	 			current_predicate(found/1)->
-	 				\+found(Goal_pos),
-	 				assert(found(Goal_pos));
-	 			otherwise->
-	 				assert(found(Goal_pos))
-	 		) 				
+	 		\+found(Goal_pos),
+	 		(\+found(Goal_pos)->assert(found(Goal_pos)),updatepos(p(X,Y),Goal_pos))			
 	).
 
 solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
