@@ -12,13 +12,21 @@ candidate_number(17655).
 %% strategy may change by adapting the bound to particular situation
 
 :- dynamic
-	found_internal_objects/1,found/1.
+	found_internal_objects/1,found/1,bound/1,status/1,curr_state/2.
+
+reset_bound:-
+	retractall(bound(_)),assert(bound(25)).
 
 init_state:-
-	(
-		current_predicate(curr_state/2)-> retractall(status(_)),retractall(bound(_)),retractall(curr_state(_,_)),assert(status(normal)), assert(bound(25)), assert(curr_state([],[]));
-		otherwise->assert(status(normal)), assert(bound(25)), assert(curr_state([],[]))
-	).
+	complete,assert(status(normal)),assert(bound(25)),assert(curr_state([],[])).
+
+complete:-
+	retractall(curr_state(_,_)),
+	retractall(bound(_)),
+	retractall(status(_)),
+	retractall(pred_actor(_)),
+	retractall(found(_)),		
+	retractall(found_internal_objects(_)).
 
 updatepos(Pos,Type):-
 	curr_state(OracleList,ChargingList),
@@ -72,58 +80,72 @@ getNearest(PosList,Target,Type):-
 
 %% debug utilities %%
 
+%%debug(true).
+debug(false).
+
+debug_message(A):-
+(
+	debug(true)->writeln(A);
+	debug(false)->true
+).
+
 print_state:-
-	status(S), curr_state(OracleList,ChargingList), agent_current_energy(oscar,E),
-	writeln('status': S), writeln('current energy': E),
-	writeln('OracleList': OracleList), writeln('ChargingList': ChargingList).
+(
+	debug(true)->
+		status(S), curr_state(OracleList,ChargingList), agent_current_energy(oscar,E),
+		writeln('status': S), writeln('current energy': E),
+		writeln('OracleList': OracleList), writeln('ChargingList': ChargingList);
+	debug(false)->true
+).
 
 %% main strategy stub
 
 start_solving(A):-
-	init_state,find_solution,!,pred_actor(A),do_command([oscar,say,A]),complete.
+	init_state,find_solution,!,pred_actor(A),do_command([oscar,say,A]).
 
 find_solution:-
 	\+agent_current_energy(oscar,0),
 	count_actors(1, ActorCount),
 	status(S),
+	debug_message('find'),
 	(
 		ActorCount=1->true;	
-		S=normal->normal_strategy;
-		S=critical->critical_strategy
+		S=normal->debug_message('find normal'),normal_strategy,!;
+		S=critical->debug_message('find critic'),critical_strategy,!
 	).
 
-complete:-
-	retractall(pred_actor(_)),
-	retractall(found(_)),		
-	retractall(found_internal_objects(_)).
-
-%% critical status strategy
+%% energy switch from normal to critical
 
 check_energy_switch:-
 	agent_current_energy(oscar,E),status(S),bound(B),(	
 		E<B ->(	
-			S = normal-> assert(status(critical)), retract(status(normal)),find_solution;
+			S = normal-> assert(status(critical)),retract(status(normal)),find_solution;
 			otherwise->find_solution 
 		);
 		otherwise ->(	
 			S = normal->find_solution;
-			otherwise-> assert(status(normal)), retract(status(critical)),find_solution 
+			otherwise-> assert(status(normal)),retract(status(critical)),find_solution 
 		)
 	).
+
+%% this should always return a o(_) or a c(_) position first
 
 my_map_adjacent(CurrP,AdjPos,RetType):-
 	map_adjacent(CurrP,AdjPos,RetType),
 	\+found_internal_objects(RetType),
 	(RetType=o(_);RetType=c(_)).
 
-my_map_adjacent(CurrP,AdjPos,empty).
+my_map_adjacent(CurrP,AdjPos,RetType):-
+	map_adjacent(CurrP,AdjPos,RetType),RetType=empty.
+
+%% critical status strategy
 
 critical_strategy:-
 	agent_current_position(oscar,CurrP),
 	my_map_adjacent(CurrP,AdjPos,Type),!,
 	curr_state(_,ChargingList),
 	(
-		Type=c(_)->agent_topup_energy(oscar, Type),assert(found_internal_objects(Type));
+		Type=c(_)->agent_topup_energy(oscar, Type),assert(found_internal_objects(Type)),reset_bound;
 		\+ChargingList=[]->getNearest(ChargingList,Target,c(_)),solve_task_A_star(go(Target),_);
 		Type=o(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
 		otherwise->solve_task_A_star(random,_)
@@ -131,28 +153,35 @@ critical_strategy:-
 	check_energy_switch.
 
 
-%% normal status strategy 
+%% normal status strategy
+
 normal_strategy:-
 	agent_current_position(oscar,CurrP),
-	my_map_adjacent(CurrP,AdjPos,Type),!,
+	my_map_adjacent(CurrP,AdjPos,Type),debug_message('normal_strategy adj':Type),!,
 	curr_state(OracleList,_),(
 		Type=o(_)->
-			writeln('loop strategy'),
 			bound(B),
 			agent_current_energy(oscar,E),
 			Ask_oracle_cost is B + 10,(
-				E<Ask_oracle_cost->retractall(bound(_)),assert(bound(Ask_oracle_cost)),updatepos(CurrP,Type),writeln('changed bound');
-				otherwise->find_identity(Type),assert(found_internal_objects(Type))
+				E<Ask_oracle_cost->retractall(bound(_)),assert(bound(Ask_oracle_cost)),updatepos(CurrP,Type);
+				otherwise->find_identity(Type),assert(found_internal_objects(Type)),debug_message('asking oracle')
 			);
 		Type=c(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
-		\+OracleList=[]->getNearest(OracleList,Target,o(_)),solve_task_A_star(go(Target),_),writeln('loop strategy');
-		otherwise->solve_task_A_star(random,_)
+		\+OracleList=[]->getNearest(OracleList,Target,o(_)),solve_task_A_star(go(Target),_);
+		otherwise->solve_task_A_star(random,_),debug_message('notafailin')
 	),
 	check_energy_switch.
 
 %% A* %%
 
+test_assert:-
+	test_assert(1).
+
+test_assert(A):-
+	A1 is A+1,A1<12,A1>0,assert(found(c(A))),assert(found(o(A))),test_assert(A1).
+
 solve_task_A_star(Goal,Cost):-
+	debug_message('A_star'),
 	agent_current_position(oscar,P),
 	( 
 		Goal = go(Goal_pos) -> map_distance(P,Goal_pos,H);
@@ -166,24 +195,25 @@ solve_task_A_star(Goal,Cost):-
 	reverse(RR,[_Init|R]),
 	agent_do_moves(oscar,R).
 
-solve_task_A_star(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
+acheived(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
 	( 	
 		Goal = go(p(Xgoal,Ygoal)) -> Xgoal = X,Ygoal = Y;
 	 	Goal = find(Goal_pos) -> map_adjacent(p(X,Y),_,Goal_pos);
-	 	Goal = random , map_adjacent(p(X,Y),_,Goal_pos),(Goal_pos=o(_);Goal_pos=c(_)),\+found(Goal_pos)-> 
+	 	Goal = random -> 
 	 		map_adjacent(p(X,Y),_,Goal_pos),
-	 		writeln('loop A*':Goal_pos),
 	 		(Goal_pos=o(_);Goal_pos=c(_)),
-	 		\+found(Goal_pos),
-	 		(\+found(Goal_pos)->assert(found(Goal_pos)))			
+	 		\+found(Goal_pos),assert(found(Goal_pos))		
 	).
 
 solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
+	debug_message('A_star_recursive'),
 	Current=c(F0,G0,P0,Path_to_P0),
 	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
 	NewAgenda = [NewCurr|Rest],
-	Dpth1 is Dpth+1,
-	solve_task_A_star(Goal,NewCurr,Rest,Dpth,RR,Cost,NewPos).
+	Dpth1 is Dpth+1,(
+		acheived(Goal,NewCurr,Rest,Dpth,RR,Cost,NewPos)->debug_message('acheived'),true;
+		otherwise->solve_task_A_star(Goal,NewCurr,Rest,Dpth,RR,Cost,NewPos)
+	).
 
 add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	map_adjacent(Curr,Adj1,empty),
@@ -196,10 +226,8 @@ add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	F1 is CurrG+H1+1,	
 	G1 is CurrG+1,
 	(
-		%% use simple bfs
 		Goal = random -> 
-			\+ memberchk(c(_,_,Adj1,_),Agenda)
-		;
+			\+ memberchk(c(_,_,Adj1,_),Agenda);
 		otherwise -> 
 			\+ memberchk(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda) 
 	),
