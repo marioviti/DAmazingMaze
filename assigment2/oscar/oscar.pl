@@ -146,7 +146,7 @@ critical_strategy:-
 	curr_state(_,ChargingList),
 	(
 		Type=c(_)->agent_topup_energy(oscar, Type),assert(found_internal_objects(Type)),reset_bound;
-		\+ChargingList=[]->getNearest(ChargingList,Target,c(_)),solve_task_A_star(go(Target),_);
+		%%\+ChargingList=[]->getNearest(ChargingList,Target,c(_)),solve_task_A_star(go(Target),_);
 		Type=o(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
 		otherwise->solve_task_A_star(random,_)
 	),
