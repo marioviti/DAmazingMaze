@@ -12,13 +12,10 @@ candidate_number(17655).
 %% strategy may change by adapting the bound to particular situation
 
 :- dynamic
-	found_internal_objects/1,found/1,bound/1,status/1,curr_state/2.
-
-reset_bound:-
-	retractall(bound(_)),assert(bound(25)).
+	used_internal_objects/1,found/1,bound/1,status/1,curr_state/2,seen_pos/1.
 
 init_state:-
-	complete,assert(status(normal)),assert(bound(25)),assert(curr_state([],[])).
+	complete,assert(status(normal)),assert(bound(20)),assert(curr_state([],[])).
 
 complete:-
 	retractall(curr_state(_,_)),
@@ -26,7 +23,11 @@ complete:-
 	retractall(status(_)),
 	retractall(pred_actor(_)),
 	retractall(found(_)),		
-	retractall(found_internal_objects(_)).
+	retractall(used_internal_objects(_)),
+	retractall(seen_pos(_)).
+
+reset_bound:-
+	retractall(bound(_)),assert(bound(20)).
 
 updatepos(Pos,Type):-
 	curr_state(OracleList,ChargingList),
@@ -80,8 +81,8 @@ getNearest(PosList,Target,Type):-
 
 %% debug utilities %%
 
-%%debug(true).
-debug(false).
+debug(true).
+%%debug(false).
 
 debug_message(A):-
 (
@@ -98,10 +99,18 @@ print_state:-
 	debug(false)->true
 ).
 
+test_assert:-
+	test_assert(0),!.
+
+test_assert(N):-
+	N<11,N1 is N+1,assert(found(o(N))),assert(found(c(N))),test_assert(N1).
+
 %% main strategy stub
 
 start_solving(A):-
-	init_state,find_solution,!,pred_actor(A),do_command([oscar,say,A]).
+	complete,init_state,find_solution,!,pred_actor(A),do_command([oscar,say,A]).
+
+%% at the end of each jurney we check if we found the soultion
 
 find_solution:-
 	\+agent_current_energy(oscar,0),
@@ -114,7 +123,7 @@ find_solution:-
 		S=critical->debug_message('find critic'),critical_strategy,!
 	).
 
-%% energy switch from normal to critical
+%% energy switch from normal to critical depending on a dynamic bound
 
 check_energy_switch:-
 	agent_current_energy(oscar,E),status(S),bound(B),(	
@@ -132,7 +141,7 @@ check_energy_switch:-
 
 my_map_adjacent(CurrP,AdjPos,RetType):-
 	map_adjacent(CurrP,AdjPos,RetType),
-	\+found_internal_objects(RetType),
+	\+used_internal_objects(RetType),
 	(RetType=o(_);RetType=c(_)).
 
 my_map_adjacent(CurrP,AdjPos,RetType):-
@@ -145,40 +154,32 @@ critical_strategy:-
 	my_map_adjacent(CurrP,AdjPos,Type),!,
 	curr_state(_,ChargingList),
 	(
-		Type=c(_)->agent_topup_energy(oscar, Type),assert(found_internal_objects(Type)),reset_bound;
-		%%\+ChargingList=[]->getNearest(ChargingList,Target,c(_)),solve_task_A_star(go(Target),_);
-		Type=o(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
+		Type=c(_)->agent_topup_energy(oscar, Type),assert(used_internal_objects(Type)),reset_bound;
+		Type=o(_)->solve_task_A_star(find(c(_)),_);
 		otherwise->solve_task_A_star(random,_)
 	),
 	check_energy_switch.
-
 
 %% normal status strategy
 
 normal_strategy:-
 	agent_current_position(oscar,CurrP),
-	my_map_adjacent(CurrP,AdjPos,Type),debug_message('normal_strategy adj':Type),!,
-	curr_state(OracleList,_),(
+	my_map_adjacent(CurrP,AdjPos,Type),!,debug_message('normal_strategy adj':Type),
+	(
 		Type=o(_)->
-			bound(B),
-			agent_current_energy(oscar,E),
-			Ask_oracle_cost is B + 10,(
-				E<Ask_oracle_cost->retractall(bound(_)),assert(bound(Ask_oracle_cost)),updatepos(CurrP,Type);
-				otherwise->find_identity(Type),assert(found_internal_objects(Type)),debug_message('asking oracle')
+			bound(B),agent_current_energy(oscar,E),
+			Ask_oracle_cost is B + 10,
+			(
+				E<Ask_oracle_cost->retractall(bound(_)),assert(bound(Ask_oracle_cost));
+				otherwise->find_identity(Type),!,assert(used_internal_objects(Type)),debug_message('asking oracle')
 			);
-		Type=c(_)->updatepos(CurrP,Type),solve_task_A_star(random,_);
-		\+OracleList=[]->getNearest(OracleList,Target,o(_)),solve_task_A_star(go(Target),_);
-		otherwise->solve_task_A_star(random,_),debug_message('notafailin')
+		Type=c(_)->solve_task_A_star(find(o(_)),_);
+		otherwise->solve_task_A_star(random,_)
 	),
 	check_energy_switch.
 
-%% A* %%
-
-test_assert:-
-	test_assert(1).
-
-test_assert(A):-
-	A1 is A+1,A1<12,A1>0,assert(found(c(A))),assert(found(o(A))),test_assert(A1).
+%% BFS least number of arch in a graph, Best first implements adjacency list %%
+%% Best first and heuristic compress search space %%
 
 solve_task_A_star(Goal,Cost):-
 	debug_message('A_star'),
@@ -186,11 +187,9 @@ solve_task_A_star(Goal,Cost):-
 	( 
 		Goal = go(Goal_pos) -> map_distance(P,Goal_pos,H);
 	 	Goal = find(Goal_pos) -> H is 0;
-	 	Goal = random -> H is 0
+	 	Goal = random -> H is 0, debug_message('random')
 	),
-	Ginit is 0,
-	DpthInit is 0,
-	Finit is H,
+	Ginit is 0,DpthInit is 0,Finit is H,
 	solve_task_A_star(Goal,c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos),!,
 	reverse(RR,[_Init|R]),
 	agent_do_moves(oscar,R).
@@ -198,15 +197,15 @@ solve_task_A_star(Goal,Cost):-
 acheived(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
 	( 	
 		Goal = go(p(Xgoal,Ygoal)) -> Xgoal = X,Ygoal = Y;
-	 	Goal = find(Goal_pos) -> map_adjacent(p(X,Y),_,Goal_pos);
+	 	Goal = find(Goal_pos) -> 
+	 		map_adjacent(p(X,Y),_,Goal_pos),\+used_internal_objects(Goal_pos);
 	 	Goal = random -> 
-	 		map_adjacent(p(X,Y),_,Goal_pos),
-	 		(Goal_pos=o(_);Goal_pos=c(_)),
+	 		map_adjacent(p(X,Y),_,Goal_pos),(Goal_pos=o(_);Goal_pos=c(_)),
 	 		\+found(Goal_pos),assert(found(Goal_pos))		
-	).
+	),retractall(seen_pos(_)).
 
 solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
-	debug_message('A_star_recursive'),
+	%%debug_message('A_star_recursive'),
 	Current=c(F0,G0,P0,Path_to_P0),
 	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
 	NewAgenda = [NewCurr|Rest],
@@ -217,20 +216,18 @@ solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
 
 add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	map_adjacent(Curr,Adj1,empty),
+	\+seen_pos(Adj1),
+	debug_message(Adj1),
+	assert(seen_pos(Adj1)),
 	( 
 		Goal = go(Goal_pos) -> map_distance(Adj1,Goal_pos,H1);
 	 	Goal = find(Goal_pos) -> H1 is 0;
 	 	Goal = random -> H1 is 0 
 	),
 	\+ memberchk(Adj1,Path_to_P),
+	\+ memberchk(c(_,_,Adj1,_),Agenda),
 	F1 is CurrG+H1+1,	
 	G1 is CurrG+1,
-	(
-		Goal = random -> 
-			\+ memberchk(c(_,_,Adj1,_),Agenda);
-		otherwise -> 
-			\+ memberchk(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda) 
-	),
 	add_sorted_Agenda(c(F1,G1,Adj1,[Curr|Path_to_P]),Agenda,Add_one_Agenda),!,
 	add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Add_one_Agenda,NewAgenda).
 
