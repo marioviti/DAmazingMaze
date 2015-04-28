@@ -1,24 +1,23 @@
 /*
  *      oscar.pl
  *
- *		Students edit this program to complete the assignment.
+ *		Please run the following: repeat,complete,ailp_reset,start_solving(A).
  */
 
 :-consult('wp.pl').
-candidate_number(17655).
+candidate_number(10110).
 
 %% shared strategies module %%
 
 %% strategy may change by adapting the bound to particular situation
 
 :- dynamic
-	used_internal_objects/1,found/1,bound/1,status/1,curr_state/2,seen_pos/1.
+	used_internal_objects/1,found/1,bound/1,status/1,seen_pos/1.
 
 init_state:-
-	complete,assert(status(normal)),assert(bound(20)),assert(curr_state([],[])).
+	complete,assert(status(normal)),assert(bound(25)).
 
 complete:-
-	retractall(curr_state(_,_)),
 	retractall(bound(_)),
 	retractall(status(_)),
 	retractall(pred_actor(_)),
@@ -27,62 +26,12 @@ complete:-
 	retractall(seen_pos(_)).
 
 reset_bound:-
-	retractall(bound(_)),assert(bound(20)).
-
-updatepos(Pos,Type):-
-	curr_state(OracleList,ChargingList),
-	(	
-		Type = o(_)-> assert(curr_state([Pos|OracleList],ChargingList));
-		Type = c(_)-> assert(curr_state(OracleList,[Pos|ChargingList]))
-	),
-	retract(curr_state(OracleList,ChargingList)).
-
-deletepos(Pos,Type):-
-	curr_state(OracleList,ChargingList),
-	(	
-		Type = o(_)-> subtract(OracleList, [Pos], NewOracleList), assert(curr_state(NewOracleList,ChargingList));
-		Type = c(_)-> subtract(ChargingList, [Pos], NewChargingList), assert(curr_state(OracleList,NewChargingList))
-	),
-	retract(curr_state(OracleList,ChargingList)).
-
-%% Use getNearest/2 gets the nearest Pos from a List of Pos
-
-updateHeuristic(CurrP,[],[]).
-
-updateHeuristic(CurrP,[First|Rest],[couple(First,D)|List]):-
-	map_distance(CurrP,First,D),
-	updateHeuristic(CurrP,Rest,List).
-
-add_sorted(Child,[Curr|Rest],[Child,Curr|Rest]):-
-	Child = couple(_,Value1),
-	Curr = couple(_,Value2),
-	Value1 =< Value2.
-
-add_sorted(Child,[],[Child]).
-
-add_sorted(Child,[Curr|Rest],[Curr|NewAgenda]):-
-	Child = couple(_,Value1),
-	Curr = couple(_,Value2),
-	Value1 > Value2,
-	add_sorted(Child,Rest,NewAgenda).
-
-sort([],NewSortedPosList,NewSortedPosList).
-
-sort([First|Rest],TemplList,SortedPosList):-
-	add_sorted(First,TemplList,NewSortedPosList),
-	sort(Rest,NewSortedPosList,SortedPosList).
-
-getNearest(PosList,Target,Type):-
-	agent_current_position(oscar,CurrP),
-	updateHeuristic(CurrP,PosList,WeightedPosList),
-	sort(WeightedPosList,[],SortedPosList),
-	SortedPosList=[couple(Target,_)|Rest],
-	deletepos(Target,Type).
+	retractall(bound(_)),assert(bound(25)).
 
 %% debug utilities %%
 
-debug(true).
-%%debug(false).
+%%debug(true).
+debug(false).
 
 debug_message(A):-
 (
@@ -93,24 +42,17 @@ debug_message(A):-
 print_state:-
 (
 	debug(true)->
-		status(S), curr_state(OracleList,ChargingList), agent_current_energy(oscar,E),
+		status(S),agent_current_energy(oscar,E),
 		writeln('status': S), writeln('current energy': E),
-		writeln('OracleList': OracleList), writeln('ChargingList': ChargingList);
 	debug(false)->true
 ).
-
-test_assert:-
-	test_assert(0),!.
-
-test_assert(N):-
-	N<11,N1 is N+1,assert(found(o(N))),assert(found(c(N))),test_assert(N1).
 
 %% main strategy stub
 
 start_solving(A):-
 	complete,init_state,find_solution,!,pred_actor(A),do_command([oscar,say,A]).
 
-%% at the end of each jurney we check if we found the soultion
+%% at the end of each journey we check if we found the solution
 
 find_solution:-
 	\+agent_current_energy(oscar,0),
@@ -152,7 +94,6 @@ my_map_adjacent(CurrP,AdjPos,RetType):-
 critical_strategy:-
 	agent_current_position(oscar,CurrP),
 	my_map_adjacent(CurrP,AdjPos,Type),!,
-	curr_state(_,ChargingList),
 	(
 		Type=c(_)->agent_topup_energy(oscar, Type),assert(used_internal_objects(Type)),reset_bound;
 		Type=o(_)->solve_task_A_star(find(c(_)),_);
@@ -178,8 +119,7 @@ normal_strategy:-
 	),
 	check_energy_switch.
 
-%% BFS least number of arch in a graph, Best first implements adjacency list %%
-%% Best first and heuristic compress search space %%
+%% Agenda based A* search %%
 
 solve_task_A_star(Goal,Cost):-
 	debug_message('A_star'),
@@ -205,7 +145,7 @@ acheived(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,New
 	),retractall(seen_pos(_)).
 
 solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
-	%%debug_message('A_star_recursive'),
+	debug_message('A_star_recursive'),
 	Current=c(F0,G0,P0,Path_to_P0),
 	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
 	NewAgenda = [NewCurr|Rest],
