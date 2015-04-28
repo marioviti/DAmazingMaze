@@ -12,6 +12,9 @@ candidate_number(17655).
 :-dynamic
 	used_internal_objects/1,found/1,bound/1,status/1,curr_state/2,seen_pos/1.
 
+init_state:-
+	complete,assert(status(normal)),assert(bound(25)),assert(curr_state([],[])).
+
 complete:-
 	retractall(curr_state(_,_)),
 	retractall(bound(_)),
@@ -21,22 +24,175 @@ complete:-
 	retractall(used_internal_objects(_)),
 	retractall(seen_pos(_)).
 
-start_strategy:-
-	solve_task_A_star(find(o(_)),C),find_identity(Type),!,
+reset_bound:-
+	retractall(bound(_)),assert(bound(25)).
+
+updatepos(Pos,Type):-
+	curr_state(OracleList,ChargingList),
+	(	
+		Type = o(_)-> assert(curr_state([Pos|OracleList],ChargingList));
+		Type = c(_)-> assert(curr_state(OracleList,[Pos|ChargingList]))
+	),
+	retract(curr_state(OracleList,ChargingList)).
+
+deletepos(Pos,Type):-
+	curr_state(OracleList,ChargingList),
+	(	
+		Type = o(_)-> subtract(OracleList, [Pos], NewOracleList), assert(curr_state(NewOracleList,ChargingList));
+		Type = c(_)-> subtract(ChargingList, [Pos], NewChargingList), assert(curr_state(OracleList,NewChargingList))
+	),
+	retract(curr_state(OracleList,ChargingList)).
+
+%% Use getNearest/2 gets the nearest Pos from a List of Pos
+
+updateHeuristic(CurrP,[],[]).
+
+updateHeuristic(CurrP,[First|Rest],[couple(First,D)|List]):-
+	map_distance(CurrP,First,D),
+	updateHeuristic(CurrP,Rest,List).
+
+add_sorted(Child,[Curr|Rest],[Child,Curr|Rest]):-
+	Child = couple(_,Value1),
+	Curr = couple(_,Value2),
+	Value1 =< Value2.
+
+add_sorted(Child,[],[Child]).
+
+add_sorted(Child,[Curr|Rest],[Curr|NewAgenda]):-
+	Child = couple(_,Value1),
+	Curr = couple(_,Value2),
+	Value1 > Value2,
+	add_sorted(Child,Rest,NewAgenda).
+
+sort([],NewSortedPosList,NewSortedPosList).
+
+sort([First|Rest],TemplList,SortedPosList):-
+	add_sorted(First,TemplList,NewSortedPosList),
+	sort(Rest,NewSortedPosList,SortedPosList).
+
+getNearest(PosList,Target,Type):-
+	my_agent(Agent),
+	game_predicates:agent_current_position(Agent,CurrP),
+	updateHeuristic(CurrP,PosList,WeightedPosList),
+	sort(WeightedPosList,[],SortedPosList),
+	SortedPosList=[couple(Target,_)|Rest],
+	deletepos(Target,Type).
+
+
+%% debug utilities %%
+
+debug(true).
+%%debug(false).
+
+debug_message(A):-
+(
+	debug(true)->writeln(A);
+	debug(false)->true
+).
+
+print_state:-
+(
+	debug(true)->
+		status(S), curr_state(OracleList,ChargingList), my_agent(Agent), game_predicates:agent_current_energy(Agent,E),
+		writeln('status': S), writeln('current energy': E),
+		writeln('OracleList': OracleList), writeln('ChargingList': ChargingList);
+	debug(false)->true
+).
+
+test_assert:-
+	test_assert(0),!.
+
+test_assert(N):-
+	N<11,N1 is N+1,assert(found(o(N))),assert(found(c(N))),test_assert(N1).
+
+%% main strategy stub
+
+start_solving(A):-
+	complete,init_state,find_solution,!,pred_actor(A),my_agent(Agent),do_command([Agent,say,A]).
+
+%% at the end of each jurney we check if we found the soultion
+
+find_solution:-
+	my_agent(Agent),
+	\+game_predicates:agent_current_energy(Agent,0),
+	count_actors(1, ActorCount),
+	status(S),
+	debug_message('find'),
 	(
-		count_actors(1, ActorCount)->pred_actor(A),do_command([oscar,say,A]);
-		otherwise->start_strategy
+		ActorCount=1->true;	
+		S=normal->debug_message('find normal'),normal_strategy,!;
+		S=critical->debug_message('find critic'),critical_strategy,!
 	).
-check_empty(A):-
-	my_agent(Agent),query_world( agent_current_position, [Agent,P] ),map_adjacent(P,A,empty).
+
+%% energy switch from normal to critical depending on a dynamic bound
+
+check_energy_switch:-
+	my_agent(Agent),
+	game_predicates:agent_current_energy(Agent,E),status(S),bound(B),(	
+		E<B ->(	
+			S = normal-> assert(status(critical)),retract(status(normal)),find_solution;
+			otherwise->find_solution 
+		);
+		otherwise ->(	
+			S = normal->find_solution;
+			otherwise-> assert(status(normal)),retract(status(critical)),find_solution 
+		)
+	).
+
+%% this should always return a o(_) or a c(_) position first
+
+my_map_adjacent(CurrP,AdjPos,RetType):-
+	map_adjacent(CurrP,AdjPos,RetType),
+	\+used_internal_objects(RetType),
+	(RetType=o(_);RetType=c(_)).
+
+my_map_adjacent(CurrP,AdjPos,RetType):-
+	map_adjacent(CurrP,AdjPos,RetType),RetType=empty.
+
+%% critical status strategy
+
+critical_strategy:-
+	my_agent(Agent),
+	game_predicates:agent_current_position(Agent,CurrP),
+	my_map_adjacent(CurrP,AdjPos,Type),!,
+	curr_state(_,ChargingList),
+	(
+		Type=c(_)->game_predicates:agent_topup_energy(Agent, Type),assert(used_internal_objects(Type)),reset_bound;
+		Type=o(_)->solve_task_A_star(find(c(_)),_);
+		otherwise->solve_task_A_star(random,_)
+	),
+	check_energy_switch.
+
+%% normal status strategy
+
+normal_strategy:-
+	my_agent(Agent),
+	game_predicates:agent_current_position(Agent,CurrP),
+	my_map_adjacent(CurrP,AdjPos,Type),!,debug_message('normal_strategy adj':Type),
+	(
+		Type=o(_)->
+			bound(B),game_predicates:agent_current_energy(Agent,E),
+			Ask_oracle_cost is B + 10,
+			(
+				E<Ask_oracle_cost->retractall(bound(_)),assert(bound(Ask_oracle_cost));
+				otherwise->find_identity(Type),!,assert(used_internal_objects(Type)),debug_message('asking oracle')
+			);
+		Type=c(_)->solve_task_A_star(find(o(_)),_);
+		otherwise->solve_task_A_star(random,_)
+	),
+	check_energy_switch.
+
+%% BFS least number of arch in a graph, Best first implements adjacency list %%
+%% Best first and heuristic compress search space %%
 
 solve_task_A_star(Goal,Cost):-
+	debug_message('A_star'),
 	my_agent(Agent),
 	query_world( agent_current_position, [Agent,P] ),
 	( 
 		Goal = go(Goal_pos) -> map_distance(P,Goal_pos,H);
 	 	Goal = find(Goal_pos) -> H is 0;
-	 	Goal = random -> H is 0
+	 	Goal = random -> H is 0, debug_message('random')
 	),
 	Ginit is 0,
 	DpthInit is 0,
@@ -44,7 +200,7 @@ solve_task_A_star(Goal,Cost):-
 	solve_task_A_star(Goal,c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos),!,
 	reverse(RR,[_Init|R]),(
 		query_world( agent_do_moves, [Agent,R] )->true;
-		otherwise->solve_task_A_star(Goal,c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos)
+		otherwise->debug_message('go again'),solve_task_A_star(Goal,_)
 	).
 
 
@@ -63,7 +219,7 @@ solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
 	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
 	NewAgenda = [NewCurr|Rest],
 	Dpth1 is Dpth+1,(
-		acheived(Goal,NewCurr,Rest,Dpth,RR,Cost,NewPos)->true;
+		acheived(Goal,NewCurr,Rest,Dpth,RR,Cost,NewPos)->debug_message('acheived'),true;
 		otherwise->solve_task_A_star(Goal,NewCurr,Rest,Dpth,RR,Cost,NewPos)
 	).
 
