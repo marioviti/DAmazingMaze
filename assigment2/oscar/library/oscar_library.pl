@@ -166,7 +166,7 @@ ailp_reset :-
 
 %%% Do not query any of the predicates below! %%%
 
-internal_grid_size(15).	% may be changed in testing
+internal_grid_size(25).	% may be changed in testing
 
 internal_topup(Emax):-
 	internal_grid_size(N),
