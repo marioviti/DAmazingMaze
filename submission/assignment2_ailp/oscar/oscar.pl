@@ -1,15 +1,17 @@
 /*
  *      oscar.pl
  *
- *		Students edit this program to complete the assignment.
+ *		Please run the following: repeat,complete,ailp_reset,start_solving(A).
  */
 
-
+:-consult('wp.pl').
 candidate_number(10110).
 
-:-consult(wp).	% Wikipedia stuff
+%% shared strategies module %%
 
-:-dynamic
+%% strategy may change by adapting the bound to particular situation
+
+:- dynamic
 	used_internal_objects/1,found/1,bound/1,status/1,seen_pos/1.
 
 init_state:-
@@ -40,21 +42,20 @@ debug_message(A):-
 print_state:-
 (
 	debug(true)->
-		status(S), my_agent(Agent), game_predicates:agent_current_energy(Agent,E),
-		writeln('status': S), writeln('current energy': E);
+		status(S),agent_current_energy(oscar,E),
+		writeln('status': S), writeln('current energy': E),
 	debug(false)->true
 ).
 
 %% main strategy stub
 
 start_solving(A):-
-	complete,init_state,find_solution,!,pred_actor(A),my_agent(Agent),do_command([Agent,say,A]).
+	complete,init_state,find_solution,!,pred_actor(A),do_command([oscar,say,A]).
 
-%% at the end of each jurney we check if we found the soultion
+%% at the end of each journey we check if we found the solution
 
 find_solution:-
-	my_agent(Agent),
-	\+game_predicates:agent_current_energy(Agent,0),
+	\+agent_current_energy(oscar,0),
 	count_actors(1, ActorCount),
 	status(S),
 	debug_message('find'),
@@ -67,8 +68,7 @@ find_solution:-
 %% energy switch from normal to critical depending on a dynamic bound
 
 check_energy_switch:-
-	my_agent(Agent),
-	game_predicates:agent_current_energy(Agent,E),status(S),bound(B),(	
+	agent_current_energy(oscar,E),status(S),bound(B),(	
 		E<B ->(	
 			S = normal-> assert(status(critical)),retract(status(normal)),find_solution;
 			otherwise->find_solution 
@@ -92,11 +92,10 @@ my_map_adjacent(CurrP,AdjPos,RetType):-
 %% critical status strategy
 
 critical_strategy:-
-	my_agent(Agent),
-	game_predicates:agent_current_position(Agent,CurrP),
+	agent_current_position(oscar,CurrP),
 	my_map_adjacent(CurrP,AdjPos,Type),!,
 	(
-		Type=c(_)->game_predicates:agent_topup_energy(Agent, Type),assert(used_internal_objects(Type)),reset_bound;
+		Type=c(_)->agent_topup_energy(oscar, Type),assert(used_internal_objects(Type)),reset_bound;
 		Type=o(_)->solve_task_A_star(find(c(_)),_);
 		otherwise->solve_task_A_star(random,_)
 	),
@@ -105,12 +104,11 @@ critical_strategy:-
 %% normal status strategy
 
 normal_strategy:-
-	my_agent(Agent),
-	game_predicates:agent_current_position(Agent,CurrP),
+	agent_current_position(oscar,CurrP),
 	my_map_adjacent(CurrP,AdjPos,Type),!,debug_message('normal_strategy adj':Type),
 	(
 		Type=o(_)->
-			bound(B),game_predicates:agent_current_energy(Agent,E),
+			bound(B),agent_current_energy(oscar,E),
 			Ask_oracle_cost is B + 10,
 			(
 				E<Ask_oracle_cost->retractall(bound(_)),assert(bound(Ask_oracle_cost));
@@ -125,27 +123,21 @@ normal_strategy:-
 
 solve_task_A_star(Goal,Cost):-
 	debug_message('A_star'),
-	my_agent(Agent),
-	query_world( agent_current_position, [Agent,P] ),
+	agent_current_position(oscar,P),
 	( 
 		Goal = go(Goal_pos) -> map_distance(P,Goal_pos,H);
 	 	Goal = find(Goal_pos) -> H is 0;
 	 	Goal = random -> H is 0, debug_message('random')
 	),
-	Ginit is 0,
-	DpthInit is 0,
-	Finit is H,
+	Ginit is 0,DpthInit is 0,Finit is H,
 	solve_task_A_star(Goal,c(Finit,Ginit,P,[]),[],DpthInit,RR,Cost,NewPos),!,
-	reverse(RR,[_Init|R]),(
-		query_world( agent_do_moves, [Agent,R] )->true;
-		otherwise->debug_message('go again'),solve_task_A_star(Goal,_)
-	).
-
+	reverse(RR,[_Init|R]),
+	agent_do_moves(oscar,R).
 
 acheived(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,NewPos):-
 	( 	
 		Goal = go(p(Xgoal,Ygoal)) -> Xgoal = X,Ygoal = Y;
-	 	Goal = find(Goal_pos) ->
+	 	Goal = find(Goal_pos) -> 
 	 		map_adjacent(p(X,Y),_,Goal_pos),\+used_internal_objects(Goal_pos);
 	 	Goal = random -> 
 	 		map_adjacent(p(X,Y),_,Goal_pos),(Goal_pos=o(_);Goal_pos=c(_)),
@@ -153,6 +145,7 @@ acheived(Goal,c(F,G,p(X,Y),Path_to_goal),Agenda,Dpth,[p(X,Y)|Path_to_goal],G,New
 	),retractall(seen_pos(_)).
 
 solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
+	debug_message('A_star_recursive'),
 	Current=c(F0,G0,P0,Path_to_P0),
 	add_to_Agenda(Goal,P0,G0,Path_to_P0,Agenda,NewAgenda),
 	NewAgenda = [NewCurr|Rest],
@@ -164,6 +157,7 @@ solve_task_A_star(Goal,Current,Agenda,Dpth,RR,Cost,NewPos):-
 add_to_Agenda(Goal,Curr,CurrG,Path_to_P,Agenda,NewAgenda):-
 	map_adjacent(Curr,Adj1,empty),
 	\+seen_pos(Adj1),
+	debug_message(Adj1),
 	assert(seen_pos(Adj1)),
 	( 
 		Goal = go(Goal_pos) -> map_distance(Adj1,Goal_pos,H1);
@@ -192,9 +186,6 @@ add_sorted_Agenda(Child,[Curr|Rest],[Curr|NewAgenda]):-
 	Value1 > Value2,
 	add_sorted_Agenda(Child,Rest,NewAgenda).
 
-search(F,N,N,1):-
-	map_adjacent(F,N,empty).
-
 %%% command shell %%%
 
 shell:-
@@ -203,10 +194,7 @@ shell:-
 
 handle_input(Input):-
 	( Input = stop -> true
-	; Input = setup -> join_game(_A),handle_input(reset)
-	; Input = status -> query_world(game_status,[S]),show_response(S),shell
-	; Input = reset -> reset_game,start_game,shell
-	; Input = whoami -> my_agent(A),show_response(A),shell
+	; Input = reset -> ailp_reset,shell
 	; Input = [H|T] -> handle_input(H),handle_input(T),shell
 	; callable(Input,G,R) -> ( call(G) -> show_response(R) ; show_response('This failed.') ),shell
 	; otherwise -> show_response('Unknown command, please try again.'),shell
@@ -218,11 +206,10 @@ get_input(Input):-
 
 % show answer to user
 show_response(R):-
-	my_agent(Agent),
 	( R=shell(Response)   -> writes('! '),writes(Response),writes(nl)
-	; R=console(Response) -> term_to_atom(Response,A),do_command([Agent,console,A])
+	; R=console(Response) -> term_to_atom(Response,A),do_command([oscar,console,A])
 	; R=both(Response)    -> show_response(shell(Response)),show_response(console(Response))
-	; R=agent(Response)   -> term_to_atom(Response,A),do_command([Agent,say,A])
+	; R=agent(Response)   -> term_to_atom(Response,A),do_command([oscar,say,A])
 	; R=[H|T]             -> show_response(H),show_response(T)
 	; R=[]                -> true
 	; otherwise           -> writes(['! ',R])
@@ -238,12 +225,13 @@ writes(A):-
 
 % callable(+Command, +Goal, ?Response)
 callable(call(G),call(G),G).
-callable(topup(S),(my_agent(Agent),query_world( agent_topup_energy, [Agent,S] )),agent(topup)).
-callable(energy,(my_agent(Agent),query_world( agent_current_energy, [Agent,E] )),both(current_energy(E))).
-callable(position,(my_agent(Agent),query_world( agent_current_position, [Agent,P] )),both(current_position(P))).
-callable(ask(S,Q),(my_agent(Agent),query_world( agent_ask_oracle, [Agent,S,Q,A] )),A).
-callable(Task,solve_task(Task,Cost),[console(Task),shell(term(Cost))]):-
+callable(topup(S),agent_topup_energy(oscar,S),agent(topup)).
+callable(energy,agent_current_energy(oscar,E),both(current_energy(E))).
+callable(position,agent_current_position(oscar,P),both(current_position(P))).
+callable(ask(S,Q),agent_ask_oracle(oscar,S,Q,A),A).
+callable(Task,solve_task_A_star(Task,Cost),[console(Task),shell(term(Cost))]):-
 	task(Task).
 
 task(go(_Pos)).
 task(find(_O)).	% oracle o(N) or charging station c(N)
+task(random).
