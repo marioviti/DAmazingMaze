@@ -1,6 +1,6 @@
 # DAmazingMaze
 
-Ailp coursework (University of Bristol).
+Ailp coursework @University of Bristol
 
 Prolog programming experience.
 
